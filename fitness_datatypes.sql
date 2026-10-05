@@ -31,7 +31,7 @@ INSERT INTO calorie_data VALUES
 SELECT ROUND(calories, 2) AS rounded_calories
 FROM calorie_data;
 
--- Built In Method 4: AVG()
+-- Built In Method 4 - AVG()
 SELECT ROUND(AVG(calories), 2) AS average_calories
 FROM calorie_data;
 
@@ -44,11 +44,11 @@ CREATE TEMP TABLE workout_data (
 INSERT INTO workout_data VALUES
 ('Morning Jog');
 
--- Built In Method 5: UPPER()
+-- Built In Method 5 - UPPER()
 SELECT UPPER(workout_name) AS uppercase_workout
 FROM workout_data;
 
--- Built In Method 6: REPLACE()
+-- Built In Method 6 - REPLACE()
 SELECT REPLACE(workout_name, 'Jog', 'Run')
 AS updated_workout
 FROM workout_data;
@@ -62,12 +62,12 @@ INSERT INTO goal_data VALUES
 (TRUE),
 (FALSE);
 
--- Built In Method 7: NOT
+-- Built In Method 7 - NOT
 SELECT goal_completed,
        NOT goal_completed AS reversed_status
 FROM goal_data;
 
--- Built In Method 8: IS TRUE
+-- Built In Method 8 - IS TRUE
 SELECT goal_completed,
        goal_completed IS TRUE AS goal_achieved
 FROM goal_data;
