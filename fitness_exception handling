@@ -1,0 +1,270 @@
+-- ============================================================
+-- fitness_exceptions.sql | Exception Handling (PostgreSQL / PL/pgSQL)
+-- Run with: psql -f fitness_exceptions.sql
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- Setup | Tables with constraints that can raise errors
+-- ------------------------------------------------------------
+CREATE TEMP TABLE workout_log (
+    workout_id       SERIAL PRIMARY KEY,
+    workout_name     VARCHAR(100) NOT NULL,
+    workout_date     DATE NOT NULL,
+    duration_minutes INTEGER,
+    calories_burned  NUMERIC(10,3),
+    CONSTRAINT chk_duration_positive CHECK (duration_minutes > 0),
+    CONSTRAINT chk_calories_positive CHECK (calories_burned >= 0),
+    CONSTRAINT uq_workout_per_day UNIQUE (workout_name, workout_date)
+);
+
+-- Every caught error is recorded here
+CREATE TEMP TABLE error_log (
+    error_id     SERIAL PRIMARY KEY,
+    logged_at    TIMESTAMPTZ DEFAULT now(),
+    source_row   INTEGER,
+    sqlstate     TEXT,
+    error_type   TEXT,
+    message      TEXT
+);
+
+-- Raw, untrusted input (all TEXT, like data from a CSV import)
+CREATE TEMP TABLE staging_workouts (
+    row_id       SERIAL PRIMARY KEY,
+    workout_name TEXT,
+    workout_date TEXT,
+    duration     TEXT,
+    calories     TEXT
+);
+
+INSERT INTO staging_workouts (workout_name, workout_date, duration, calories) VALUES
+    ('Morning Jog', '2026-10-01', '30',         '250.5'),     -- 1 valid
+    ('Yoga',        '2026-10-01', '45',         '180'),       -- 2 valid
+    ('Morning Jog', '2026-10-01', '35',         '260'),       -- 3 duplicate
+    ('Cycling',     '2026-10-02', '-10',        '300'),       -- 4 negative duration
+    ('Swimming',    '2026-10-02', '45 minutes', '400'),       -- 5 bad integer text
+    ('Rowing',      '2026-10-03', '600',        '500'),       -- 6 too long (custom rule)
+    (NULL,          '2026-10-03', '20',         '100'),       -- 7 missing name
+    ('HIIT',        '2026-10-04', '25',         '99999999'),  -- 8 calories overflow
+    ('Weights',     '2026-10-05', '50',         '320'),       -- 9 valid
+    ('Hiking',      'not a date', '90',         '600');       -- 10 bad date
+
+
+-- ------------------------------------------------------------
+-- Part 1 | Basic handler: division_by_zero
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+    workout_minutes INTEGER[] := ARRAY[]::INTEGER[];   -- empty on purpose
+    total_minutes   INTEGER := 0;
+    average_minutes NUMERIC;
+BEGIN
+    -- cardinality of an empty array is 0, so this divides by zero
+    average_minutes := total_minutes::NUMERIC / cardinality(workout_minutes);
+
+    RAISE NOTICE 'Average workout time: % minutes', average_minutes;
+
+EXCEPTION
+    WHEN division_by_zero THEN
+        RAISE NOTICE '[Part 1] No workouts logged yet, so there is no average. (%)', SQLERRM;
+        average_minutes := 0;
+        RAISE NOTICE '[Part 1] Defaulting average to % minutes', average_minutes;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Part 2 | Specific constraint errors, each with its own handler
+-- ------------------------------------------------------------
+DO $$
+BEGIN
+    INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+    VALUES ('Running', '2026-10-01', 45, 350);
+    RAISE NOTICE '[Part 2] Inserted Running';
+
+    -- Violates UNIQUE (workout_name, workout_date)
+    INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+    VALUES ('Running', '2026-10-01', 30, 200);
+
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE NOTICE '[Part 2] Duplicate workout rejected. SQLSTATE=%', SQLSTATE;
+END $$;
+
+DO $$
+BEGIN
+    -- Violates chk_duration_positive
+    INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+    VALUES ('Cycling', '2026-10-02', -5, 100);
+
+EXCEPTION
+    WHEN check_violation THEN
+        RAISE NOTICE '[Part 2] Check constraint failed: %', SQLERRM;
+    WHEN not_null_violation THEN
+        RAISE NOTICE '[Part 2] A required column was NULL: %', SQLERRM;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Part 3 | Rollback behavior
+-- A BEGIN ... EXCEPTION block is a sub-transaction. When an error is
+-- caught, EVERY change made inside that block is undone, including
+-- statements that succeeded before the error.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+    rows_before INTEGER;
+    rows_after  INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO rows_before FROM workout_log;
+
+    BEGIN
+        INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+        VALUES ('Pilates', '2026-10-02', 40, 150);          -- succeeds...
+
+        INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+        VALUES ('Pilates', '2026-10-03', 0, 0);             -- ...then this fails
+    EXCEPTION
+        WHEN check_violation THEN
+            RAISE NOTICE '[Part 3] Caught: %', SQLERRM;
+    END;
+
+    SELECT COUNT(*) INTO rows_after FROM workout_log;
+
+    RAISE NOTICE '[Part 3] Rows before: %, rows after: % (Pilates was rolled back too)',
+        rows_before, rows_after;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Part 4 | Custom exceptions with RAISE EXCEPTION ... USING
+-- Business rule: a single workout cannot exceed 8 hours (480 minutes).
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+    new_duration INTEGER := 600;
+BEGIN
+    IF new_duration > 480 THEN
+        RAISE EXCEPTION 'Workout duration % exceeds the 480 minute limit', new_duration
+            USING ERRCODE = 'FT001',
+                  HINT    = 'Split long activities into multiple workouts.';
+    END IF;
+
+EXCEPTION
+    WHEN SQLSTATE 'FT001' THEN
+        RAISE NOTICE '[Part 4] Custom rule violated: %', SQLERRM;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Part 5 | GET STACKED DIAGNOSTICS and re-raising
+-- The inner block logs details then re-raises with a bare RAISE,
+-- so the outer block still sees the original error.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+    v_sqlstate   TEXT;
+    v_message    TEXT;
+    v_constraint TEXT;
+    v_table      TEXT;
+BEGIN
+    BEGIN
+        INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+        VALUES ('Sprints', '2026-10-04', -1, 50);
+    EXCEPTION
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS
+                v_sqlstate   = RETURNED_SQLSTATE,
+                v_message    = MESSAGE_TEXT,
+                v_constraint = CONSTRAINT_NAME,
+                v_table      = TABLE_NAME;
+
+            RAISE NOTICE '[Part 5] Inner handler | state=% constraint=% table=%',
+                v_sqlstate, v_constraint, v_table;
+
+            RAISE;  -- pass the same error up to the outer block
+    END;
+
+EXCEPTION
+    WHEN check_violation THEN
+        RAISE NOTICE '[Part 5] Outer handler also received: %', v_message;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Part 6 | Batch import where one bad row does NOT stop the rest
+-- Each row gets its own BEGIN ... EXCEPTION block, so a failure rolls
+-- back only that row. Errors are logged to error_log.
+-- ------------------------------------------------------------
+DO $$
+DECLARE
+    r             RECORD;
+    v_duration    INTEGER;
+    v_sqlstate    TEXT;
+    v_message     TEXT;
+    imported      INTEGER := 0;
+    failed        INTEGER := 0;
+BEGIN
+    TRUNCATE workout_log RESTART IDENTITY;
+
+    FOR r IN SELECT * FROM staging_workouts ORDER BY row_id
+    LOOP
+        BEGIN
+            -- Text-to-type casts can raise invalid_text_representation (22P02),
+            -- invalid_datetime_format (22007), or numeric_value_out_of_range (22003)
+            v_duration := r.duration::INTEGER;
+
+            -- Custom business rule
+            IF v_duration > 480 THEN
+                RAISE EXCEPTION 'Row % duration of % minutes exceeds 480', r.row_id, v_duration
+                    USING ERRCODE = 'FT001';
+            END IF;
+
+            INSERT INTO workout_log (workout_name, workout_date, duration_minutes, calories_burned)
+            VALUES (r.workout_name, r.workout_date::DATE, v_duration, r.calories::NUMERIC(10,3));
+
+            imported := imported + 1;
+            RAISE NOTICE '[Part 6] Row %: imported "%"', r.row_id, r.workout_name;
+
+        EXCEPTION
+            WHEN unique_violation THEN
+                failed := failed + 1;
+                INSERT INTO error_log (source_row, sqlstate, error_type, message)
+                VALUES (r.row_id, SQLSTATE, 'DUPLICATE', SQLERRM);
+                RAISE NOTICE '[Part 6] Row %: skipped, duplicate workout', r.row_id;
+
+            WHEN check_violation THEN
+                failed := failed + 1;
+                INSERT INTO error_log (source_row, sqlstate, error_type, message)
+                VALUES (r.row_id, SQLSTATE, 'CHECK FAILED', SQLERRM);
+                RAISE NOTICE '[Part 6] Row %: skipped, check constraint failed', r.row_id;
+
+            WHEN SQLSTATE 'FT001' THEN
+                failed := failed + 1;
+                INSERT INTO error_log (source_row, sqlstate, error_type, message)
+                VALUES (r.row_id, SQLSTATE, 'BUSINESS RULE', SQLERRM);
+                RAISE NOTICE '[Part 6] Row %: skipped, business rule', r.row_id;
+
+            WHEN OTHERS THEN   -- catch-all for anything unexpected
+                GET STACKED DIAGNOSTICS
+                    v_sqlstate = RETURNED_SQLSTATE,
+                    v_message  = MESSAGE_TEXT;
+                failed := failed + 1;
+                INSERT INTO error_log (source_row, sqlstate, error_type, message)
+                VALUES (r.row_id, v_sqlstate, 'UNEXPECTED', v_message);
+                RAISE NOTICE '[Part 6] Row %: skipped, unexpected error %', r.row_id, v_sqlstate;
+        END;
+    END LOOP;
+
+    RAISE NOTICE '[Part 6] Import complete: % imported, % failed', imported, failed;
+END $$;
+
+
+-- ------------------------------------------------------------
+-- Results
+-- ------------------------------------------------------------
+SELECT workout_id, workout_name, workout_date, duration_minutes, calories_burned
+FROM workout_log
+ORDER BY workout_id;
+
+SELECT source_row, sqlstate, error_type, message
+FROM error_log
+ORDER BY source_row;
