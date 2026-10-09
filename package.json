@@ -1,0 +1,17 @@
+{
+  "name": "fitness-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  },
+  "devDependencies": {
+    "vite": "^7.1.7"
+  }
+}

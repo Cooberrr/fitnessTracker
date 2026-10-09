@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f6f2" />
+    <title>Tempo — Fitness Tracker</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <a class="brand" href="#top" aria-label="Tempo home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>tempo<span class="brand-period">.</span></span>
+        </a>
+        <div class="workspace-label">WORKSPACE</div>
+        <nav aria-label="Main navigation">
+          <a class="nav-item active" href="#dashboard"><span class="nav-icon">◫</span> Dashboard</a>
+          <a class="nav-item" href="#history"><span class="nav-icon">≋</span> Workout history</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="database-status"><span class="status-dot"></span><span>Database ready</span></div>
+          <div class="profile-chip"><span class="avatar">L</span><span><strong>Your space</strong><small>Personal tracker</small></span><span class="profile-more">···</span></div>
+        </div>
+      </aside>
+
+      <main id="top" class="main-content">
+        <header class="topbar">
+          <div class="breadcrumb">Workspace <span>/</span> <strong>Dashboard</strong></div>
+          <div class="today-label"><span class="today-dot"></span><span id="today-label"></span></div>
+        </header>
+
+        <section id="dashboard" class="welcome-row">
+          <div>
+            <p class="eyebrow">YOUR TRAINING, IN FOCUS</p>
+            <h1>Make today<br class="mobile-break" /> count<span class="title-period">.</span></h1>
+            <p class="welcome-copy">A little progress adds up. Log a workout and keep your momentum going.</p>
+          </div>
+          <div class="week-pill"><span class="week-icon">↗</span><span><small>THIS WEEK</small><strong id="week-date-range">—</strong></span></div>
+        </section>
+
+        <section class="stats-grid" aria-label="Weekly workout summary">
+          <article class="stat-card primary-stat">
+            <div class="stat-top"><span class="stat-label">TOTAL TRAINING</span><span class="stat-icon">◷</span></div>
+            <div class="stat-value"><span id="week-minutes">0</span><small>min</small></div>
+            <div class="stat-foot"><span class="accent-dot"></span><span id="week-session-count">0 workouts logged</span></div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-top"><span class="stat-label">AVERAGE SESSION</span><span class="stat-icon soft-icon">↗</span></div>
+            <div class="stat-value"><span id="week-average">0</span><small>min</small></div>
+            <div class="stat-foot muted-foot">Per workout this week</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-top"><span class="stat-label">CALORIES BURNED</span><span class="stat-icon soft-icon">✳</span></div>
+            <div class="stat-value"><span id="week-calories">0</span><small>kcal</small></div>
+            <div class="stat-foot muted-foot">Across your sessions</div>
+          </article>
+        </section>
+
+        <div class="content-grid">
+          <section class="panel log-panel" aria-labelledby="log-title">
+            <div class="panel-heading">
+              <div><p class="eyebrow">ADD TO YOUR JOURNAL</p><h2 id="log-title">Log a workout</h2></div>
+              <span class="panel-heading-icon">＋</span>
+            </div>
+            <form id="workout-form" novalidate>
+              <label class="field-label" for="workout-name">Workout name</label>
+              <input id="workout-name" name="name" type="text" maxlength="100" placeholder="e.g. Morning run" required />
+              <div class="field-row">
+                <div>
+                  <label class="field-label" for="workout-date">Date</label>
+                  <input id="workout-date" name="date" type="date" required />
+                </div>
+                <div>
+                  <label class="field-label" for="workout-duration">Duration</label>
+                  <div class="input-suffix"><input id="workout-duration" name="duration" type="number" min="1" max="480" step="1" placeholder="45" required /><span>min</span></div>
+                </div>
+              </div>
+              <label class="field-label" for="workout-calories">Calories burned <span class="optional-label">OPTIONAL</span></label>
+              <div class="input-suffix"><input id="workout-calories" name="calories" type="number" min="0" max="9999999" step="0.1" placeholder="350" /><span>kcal</span></div>
+              <div id="form-message" class="form-message" role="status" aria-live="polite"></div>
+              <button class="submit-button" type="submit"><span>Save workout</span><span class="button-arrow">→</span></button>
+              <p class="form-hint"><span class="hint-lock">⌑</span> Your workouts stay saved in this browser.</p>
+            </form>
+          </section>
+
+          <section id="history" class="panel history-panel" aria-labelledby="history-title">
+            <div class="history-heading">
+              <div><p class="eyebrow">YOUR CONSISTENCY</p><h2 id="history-title">Workout history</h2></div>
+              <span class="history-count" id="history-count">0 sessions</span>
+            </div>
+            <div class="table-head"><span>WORKOUT</span><span>DATE</span><span>TIME</span><span>CALORIES</span><span></span></div>
+            <div id="workout-list" class="workout-list" aria-live="polite"></div>
+            <div id="empty-state" class="empty-state">
+              <div class="empty-illustration" aria-hidden="true"><span>＋</span><i></i><b></b></div>
+              <strong>Your first workout starts here</strong>
+              <p>Log a session to see your training history and weekly progress.</p>
+              <a href="#log-title" class="empty-link">Add your first workout <span>↗</span></a>
+            </div>
+          </section>
+        </div>
+        <footer class="page-footer"><span>Built for steady progress.</span><span><span class="footer-pulse">●</span> PostgreSQL-powered · Private to this browser</span></footer>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
