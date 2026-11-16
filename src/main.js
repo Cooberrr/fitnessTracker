@@ -16,10 +16,24 @@ const databaseReady = Promise.all([
   initdbWasmModule,
 }));
 let database;
+let weeklyMinutes = 0;
+let goalTarget = 0;
 const form = document.querySelector('#workout-form');
 const formMessage = document.querySelector('#form-message');
 const list = document.querySelector('#workout-list');
 const emptyState = document.querySelector('#empty-state');
+const stepsForm = document.querySelector('#steps-form');
+const stepsFields = stepsForm.querySelector('fieldset');
+const stepsDate = document.querySelector('#steps-date');
+const stepCount = document.querySelector('#step-count');
+const stepsButton = stepsForm.querySelector('button');
+const stepsMessage = document.querySelector('#steps-message');
+const goalForm = document.querySelector('#goal-form');
+const goalFields = goalForm.querySelector('fieldset');
+const goalInput = document.querySelector('#goal-target');
+const goalMessage = document.querySelector('#goal-message');
+const goalProgress = document.querySelector('#goal-progress');
+const goalProgressText = document.querySelector('#goal-progress-text');
 const today = new Date();
 
 const localDate = (date) => {
@@ -48,9 +62,9 @@ const displayWeek = () => {
   }).format(today);
 };
 
-const showMessage = (message = '', kind = '') => {
-  formMessage.textContent = message;
-  formMessage.className = `form-message${kind ? ` ${kind}` : ''}`;
+const showMessage = (element, message = '', kind = '') => {
+  element.textContent = message;
+  element.className = `form-message${kind ? ` ${kind}` : ''}`;
 };
 
 const friendlyError = (error) => {
@@ -63,13 +77,25 @@ const friendlyError = (error) => {
   return 'We couldn’t save that workout. Check the details and try again.';
 };
 
+const renderGoalProgress = () => {
+  if (!goalTarget) return;
+
+  goalProgress.hidden = false;
+  goalProgress.max = goalTarget;
+  goalProgress.value = Math.min(weeklyMinutes, goalTarget);
+  const progress = `${weeklyMinutes.toLocaleString()} of ${goalTarget.toLocaleString()} min this week`;
+  goalProgressText.textContent = weeklyMinutes >= goalTarget ? `${progress} · Goal reached` : progress;
+};
+
 const renderSummary = async () => {
   const { rows } = await database.query('SELECT * FROM current_week_summary()');
   const summary = rows[0];
-  document.querySelector('#week-minutes').textContent = Number(summary.total_minutes).toLocaleString();
+  weeklyMinutes = Number(summary.total_minutes);
+  document.querySelector('#week-minutes').textContent = weeklyMinutes.toLocaleString();
   document.querySelector('#week-average').textContent = Number(summary.average_minutes).toLocaleString(undefined, { maximumFractionDigits: 1 });
   document.querySelector('#week-calories').textContent = Number(summary.total_calories).toLocaleString(undefined, { maximumFractionDigits: 1 });
   document.querySelector('#week-session-count').textContent = `${summary.session_count} ${Number(summary.session_count) === 1 ? 'workout' : 'workouts'} logged`;
+  renderGoalProgress();
 };
 
 const makeWorkoutRow = (workout) => {
@@ -113,7 +139,7 @@ const makeWorkoutRow = (workout) => {
   remove.addEventListener('click', async () => {
     await database.query('DELETE FROM workout_log WHERE workout_id = $1', [workout.workout_id]);
     await refresh();
-    showMessage('Workout removed from your history.', 'success');
+    showMessage(formMessage, 'Workout removed from your history.', 'success');
   });
 
   row.append(title, date, duration, calories, remove);
@@ -122,7 +148,7 @@ const makeWorkoutRow = (workout) => {
 
 const renderHistory = async () => {
   const { rows } = await database.query(`
-    SELECT workout_id, workout_name, workout_date, duration_minutes, calories_burned
+    SELECT workout_id, workout_name, workout_date::text AS workout_date, duration_minutes, calories_burned
     FROM workout_log
     ORDER BY workout_date DESC, workout_id DESC
   `);
@@ -137,7 +163,7 @@ async function refresh() {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  showMessage();
+  showMessage(formMessage);
   const formData = new FormData(form);
   const name = String(formData.get('name') ?? '').trim();
   const date = String(formData.get('date') ?? '');
@@ -145,13 +171,13 @@ form.addEventListener('submit', async (event) => {
   const caloriesValue = String(formData.get('calories') ?? '').trim();
   const calories = caloriesValue === '' ? 0 : Number(caloriesValue);
 
-  if (!name) return showMessage('Add a name for this workout.', 'error');
-  if (!date) return showMessage('Choose the date of your workout.', 'error');
+  if (!name) return showMessage(formMessage, 'Add a name for this workout.', 'error');
+  if (!date) return showMessage(formMessage, 'Choose the date of your workout.', 'error');
   if (!Number.isInteger(duration) || duration < 1 || duration > 480) {
-    return showMessage('Duration must be between 1 and 480 minutes.', 'error');
+    return showMessage(formMessage, 'Duration must be between 1 and 480 minutes.', 'error');
   }
   if (!Number.isFinite(calories) || calories < 0) {
-    return showMessage('Calories must be zero or greater.', 'error');
+    return showMessage(formMessage, 'Calories must be zero or greater.', 'error');
   }
 
   const button = form.querySelector('.submit-button');
@@ -161,26 +187,102 @@ form.addEventListener('submit', async (event) => {
     form.reset();
     document.querySelector('#workout-date').value = localDate(today);
     await refresh();
-    showMessage('Workout saved. Nice work showing up.', 'success');
+    showMessage(formMessage, 'Workout saved. Nice work showing up.', 'success');
   } catch (error) {
-    showMessage(friendlyError(error), 'error');
+    showMessage(formMessage, friendlyError(error), 'error');
   } finally {
     button.disabled = false;
   }
 });
 
+const loadSteps = async () => {
+  const date = stepsDate.value;
+  stepCount.value = '';
+  showMessage(stepsMessage);
+  stepCount.disabled = true;
+  stepsButton.disabled = true;
+  if (!date) return;
+
+  try {
+    const { rows } = await database.query('SELECT step_count FROM daily_steps WHERE step_date = $1', [date]);
+    if (stepsDate.value === date) stepCount.value = rows[0]?.step_count ?? '';
+  } catch {
+    if (stepsDate.value === date) {
+      showMessage(stepsMessage, 'Couldn’t load steps for this date. Try choosing it again.', 'error');
+    }
+  } finally {
+    if (stepsDate.value === date) {
+      stepCount.disabled = false;
+      stepsButton.disabled = false;
+    }
+  }
+};
+
+stepsDate.addEventListener('change', loadSteps);
+
+stepsForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  showMessage(stepsMessage);
+  stepsFields.disabled = true;
+  try {
+    await database.query(`
+      INSERT INTO daily_steps (step_date, step_count)
+      VALUES ($1, $2)
+      ON CONFLICT (step_date) DO UPDATE SET step_count = EXCLUDED.step_count
+    `, [stepsDate.value, stepCount.valueAsNumber]);
+    showMessage(stepsMessage, 'Steps saved.');
+  } catch {
+    showMessage(stepsMessage, 'Couldn’t save steps. Try again.', 'error');
+  } finally {
+    stepsFields.disabled = false;
+  }
+});
+
+const loadGoal = async () => {
+  const { rows } = await database.query('SELECT target_minutes FROM weekly_workout_goal');
+  goalTarget = rows[0]?.target_minutes ?? 0;
+  goalInput.value = goalTarget || '';
+  renderGoalProgress();
+  goalFields.disabled = false;
+};
+
+goalForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const target = goalInput.valueAsNumber;
+  showMessage(goalMessage);
+  goalFields.disabled = true;
+  try {
+    await database.query(`
+      INSERT INTO weekly_workout_goal (target_minutes)
+      VALUES ($1)
+      ON CONFLICT (singleton) DO UPDATE SET target_minutes = EXCLUDED.target_minutes
+    `, [target]);
+    goalTarget = target;
+    renderGoalProgress();
+    showMessage(goalMessage, 'Goal saved.');
+  } catch {
+    showMessage(goalMessage, 'Couldn’t save the goal. Try again.', 'error');
+  } finally {
+    goalFields.disabled = false;
+  }
+});
+
 const start = async () => {
   displayWeek();
+  stepsDate.value = localDate(today);
   document.querySelector('#workout-date').value = localDate(today);
   try {
     database = await databaseReady;
     await database.waitReady;
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    await database.query("SELECT set_config('TimeZone', $1, false)", [timeZone]);
     await database.exec(schema);
-    await refresh();
+    await Promise.all([refresh(), loadSteps(), loadGoal()]);
+    stepsFields.disabled = false;
     document.querySelector('.database-status').classList.add('connected');
   } catch (error) {
     console.error(error);
-    showMessage('The local workout database could not start. Refresh the page to try again.', 'error');
+    showMessage(formMessage, 'The local workout database could not start. Refresh the page to try again.', 'error');
   }
 };
 

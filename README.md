@@ -22,6 +22,15 @@ npm run dev
 
 Open the local URL printed by Vite. Use the form to add a workout. Duration must be from 1 to 480 minutes; calories are optional and default to zero. The weekly cards use the Monday-to-Sunday calendar week.
 
+### Use the dashboard
+
+- **Daily steps.** Choose a date, enter a whole-number step count, and select **Save steps**. Choosing a saved date loads its total. Saving again replaces that date's total.
+- **Weekly workout goal.** Enter a target in minutes and select **Save goal**. The target repeats each week, and progress follows the current Monday-to-Sunday week in your browser's time zone.
+- **History and stats.** Adding or deleting a workout updates history, the weekly session count, total minutes, average duration, calories, and goal progress. The calorie total comes from the calories logged with workouts.
+- **Local storage.** Workouts, step totals, and the goal are saved in your browser profile and persist after reload.
+
+![Tempo dashboard with sample workout history, weekly stats, daily steps, and goal progress](docs/tempo-dashboard.png)
+
 ### SQL milestone programs
 
 - `fitness_datatypes.sql` demonstrates built-in operations on integer, numeric, varchar, and boolean values.

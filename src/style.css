@@ -166,7 +166,7 @@ input[type="date"] { color: #627067; }
   .table-head, .workout-row { grid-template-columns: minmax(105px, 1.5fr) minmax(50px, .7fr) minmax(42px, .6fr) minmax(55px, .75fr) 20px; gap: 5px; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .sidebar { position: static; width: 100%; height: 58px; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 18px; border-right: 0; border-bottom: 1px solid #edf0eb; }
   .brand { padding: 0; font-size: 21px; }
   .workspace-label, .sidebar nav, .database-status, .profile-chip { display: none; }
@@ -209,4 +209,53 @@ input[type="date"] { color: #627067; }
   .workout-name, .workout-date, .workout-duration, .workout-calories { font-size: 7px; }
   .workout-icon { width: 24px; height: 24px; }
   .workout-title-cell { grid-template-columns: 24px minmax(0, 1fr); gap: 6px; }
+}
+
+
+.tracking-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+.tracking-panel { padding: 18px; }
+.tracking-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+.goal-fields { grid-template-columns: minmax(0, 1fr) auto; }
+.tracking-fields .submit-button { width: auto; height: 38px; white-space: nowrap; }
+.tracking-panel .field-label { font-size: 10px; }
+.tracking-panel input { min-width: 0; font-size: 12px; }
+.tracking-panel .form-message { font-size: 11px; }
+.tracking-panel .form-message:empty { display: none; }
+.goal-progress { margin-top: 12px; color: #54705d; font-size: 11px; }
+.goal-progress progress {
+  width: 100%;
+  height: 7px;
+  margin-top: 7px;
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: #e8eee4;
+  accent-color: #5d854b;
+}
+.goal-progress progress::-webkit-progress-bar { background: #e8eee4; }
+.goal-progress progress::-webkit-progress-value { background: #5d854b; }
+.goal-progress progress::-moz-progress-bar { background: #5d854b; }
+
+@media (max-width: 900px) {
+  .tracking-grid { grid-template-columns: 1fr; gap: 11px; margin-top: 13px; }
+}
+
+@media (max-width: 360px) {
+  #steps-form .tracking-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #steps-form .submit-button { grid-column: 1 / -1; }
 }

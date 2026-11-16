@@ -64,3 +64,13 @@ AS $$
     WHERE workout_date >= date_trunc('week', CURRENT_DATE)::DATE
       AND workout_date < (date_trunc('week', CURRENT_DATE) + INTERVAL '1 week')::DATE;
 $$;
+
+CREATE TABLE IF NOT EXISTS daily_steps (
+    step_date DATE PRIMARY KEY,
+    step_count INTEGER NOT NULL CHECK (step_count >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS weekly_workout_goal (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    target_minutes INTEGER NOT NULL CHECK (target_minutes > 0)
+);
